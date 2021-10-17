@@ -22,3 +22,12 @@ ci-format:
 
 init-db:
 	./scripts/init_db.sh
+
+psql:
+	psql -h localhost -p 5432 -U postgres newsletter
+
+psql-tables:
+	psql -h localhost -p 5432 -U postgres -c "\dt" newsletter
+
+psql-columns:
+	psql -h localhost -p 5432 -U postgres -c "\dS subscriptions" newsletter
