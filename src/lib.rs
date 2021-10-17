@@ -1,19 +1,7 @@
-use std::net::TcpListener;
-
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-
-// A type implements Responder if it can be converted to HttpResponse
-async fn greet(req: HttpRequest) -> impl Responder {
-    // Opinion: not too fond of .get("name") not being type-checked against .route("/{name}").
-    // Problematic if we change "name" is the handler/route but not the other.
-    let name = req.match_info().get("name").unwrap_or("World");
-    format!("Hello {}!", &name)
-}
-
-async fn health_check() -> impl Responder {
-    HttpResponse::Ok().finish()
-}
+use serde::Deserialize;
+use std::net::TcpListener;
 
 // Return a Result to the Server, which the caller can .await.
 // If we choose to await here, it would be extremely difficult to run this
@@ -27,8 +15,32 @@ pub fn run(listener: TcpListener) -> Result<Server, std::io::Error> {
             .route("/health_check", web::get().to(health_check))
             .route("/", web::get().to(greet))
             .route("/{name}", web::get().to(greet))
+            .route("/subscriptions", web::post().to(subscribe))
     })
     .listen(listener)?
     .run();
     Ok(server)
+}
+
+// A type implements Responder if it can be converted to HttpResponse
+async fn greet(req: HttpRequest) -> impl Responder {
+    // Opinion: not too fond of .get("name") not being type-checked against .route("/{name}").
+    // Problematic if we change "name" is the handler/route but not the other.
+    let name = req.match_info().get("name").unwrap_or("World");
+    format!("Hello {}!", &name)
+}
+
+async fn health_check() -> impl Responder {
+    HttpResponse::Ok().finish()
+}
+
+#[derive(Deserialize)]
+struct SubscriberData {
+    email: String, // Each argument must implement the FormRequest trait.
+    name: String,
+}
+
+// Form extractor for x-www-form-urlencoded data
+async fn subscribe(_form: web::Form<SubscriberData>) -> HttpResponse {
+    HttpResponse::Ok().finish()
 }
