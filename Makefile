@@ -20,6 +20,9 @@ ci-lint:
 ci-format:
 	cargo fmt -- --check
 
+db-migrate:
+	SKIP_DOCKER=true ./scripts/init_db.sh
+
 init-db:
 	./scripts/init_db.sh
 
