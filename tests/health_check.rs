@@ -7,7 +7,7 @@ fn spawn_app() -> String {
         .local_addr()
         .expect("Failed to get the local socket address of the listener.")
         .port();
-    let server = zero2prod::run(listener).expect("Failed to bind address");
+    let server = zero2prod::startup::run(listener).expect("Failed to bind address");
     // tokio::spawn will await Futures that it receives.
     // tokio::spawn drops the task when the tokio runtime shuts down, so we don't
     // need to worry about our Server persisting after the tests finish.
