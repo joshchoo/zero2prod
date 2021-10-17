@@ -1,4 +1,5 @@
 setup:
+	cargo install sqlx-cli --version=0.5.7 --no-default-features --features postgres
 	cargo install cargo-tarpaulin
 
 lint:
@@ -18,3 +19,6 @@ ci-lint:
 
 ci-format:
 	cargo fmt -- --check
+
+init-db:
+	./scripts/init_db.sh
