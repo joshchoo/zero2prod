@@ -1,6 +1,10 @@
-use sqlx::PgPool;
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
-use zero2prod::{configuration::get_configuration, startup::run};
+use uuid::Uuid;
+use zero2prod::{
+    configuration::{get_configuration, DatabaseSettings},
+    startup::run,
+};
 
 pub struct TestApp {
     pub address: String,
@@ -16,10 +20,12 @@ async fn spawn_app() -> TestApp {
         .port();
     let address = format!("http://127.0.0.1:{}", port);
 
-    let config = get_configuration().expect("Failed to read configuration.");
-    let connection_pool = PgPool::connect(&config.database.connection_string())
-        .await
-        .expect("Failed to connect to Postgres.");
+    let mut config = get_configuration().expect("Failed to read configuration.");
+
+    // Assign a unique DB name
+    config.database.database_name = Uuid::new_v4().to_string();
+
+    let connection_pool = configure_database(&config.database).await;
 
     let server = run(listener, connection_pool.clone()).expect("Failed to bind address");
     // tokio::spawn will await Futures that it receives.
@@ -31,6 +37,30 @@ async fn spawn_app() -> TestApp {
         address,
         db_pool: connection_pool,
     }
+}
+
+async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // The database doesn't exist yet. Hence create connection without DB name.
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await
+        .expect("Failed to connect to Postgres.");
+
+    connection
+        // Quotation marks neeed around {} because database name contains dashes (uuid v4).
+        .execute((format!(r#"CREATE DATABASE "{}";"#, config.database_name)).as_str())
+        .await
+        .expect("Failed to create database.");
+
+    let connection_pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to connect to Postgres.");
+
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to run DB migrations.");
+
+    connection_pool
 }
 
 // These tests are not coupled to our app, besides the spawn_app call.
