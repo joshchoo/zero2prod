@@ -1,5 +1,6 @@
 use crate::routes;
 use actix_web::dev::Server;
+use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use sqlx::PgPool;
 use std::net::TcpListener;
@@ -19,6 +20,7 @@ pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Er
     // Use `move` to capture `connection` from the surrounding environment. Most useful when passing closure to a new thread so that the new thread owns the data.
     let server = HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             // Routes combines Handlers with a set of Guards
             // "/" implements the Guard trait and passes the request on only if it fulfils.
             // web::get() is short for Route::new().guard(guard::Get()) and passes only GET requests through to the handler
