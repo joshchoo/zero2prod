@@ -1,6 +1,8 @@
+use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
     startup::run,
@@ -11,8 +13,16 @@ pub struct TestApp {
     pub db_pool: PgPool,
 }
 
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let subscriber = get_subscriber("test".into(), "debug".into());
+    init_subscriber(subscriber);
+});
+
 // Decouple our app from the rest of the test.
 async fn spawn_app() -> TestApp {
+    // Execute the code in TRACING at most once. This prevents failures caused by initializing tracing multiple times.
+    Lazy::force(&TRACING);
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port.");
     let port = listener
         .local_addr()
