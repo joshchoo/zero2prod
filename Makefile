@@ -37,3 +37,6 @@ psql-columns:
 
 run-trace:
 	RUST_LOG=trace cargo run
+
+test-trace:
+	TEST_LOG=true cargo test
