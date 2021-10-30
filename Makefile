@@ -34,3 +34,6 @@ psql-tables:
 
 psql-columns:
 	psql -h localhost -p 5432 -U postgres -c "\dS subscriptions" newsletter
+
+run-trace:
+	RUST_LOG=trace cargo run
