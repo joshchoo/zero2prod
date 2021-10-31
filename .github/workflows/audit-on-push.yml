@@ -1,6 +1,9 @@
 name: Security audit
 on:
   push:
+    # Disable temporarily until audit fixes are available
+    branches-ignore:
+      - '**'
     paths:
       - '**/Cargo.toml'
       - '**/Cargo.lock'
