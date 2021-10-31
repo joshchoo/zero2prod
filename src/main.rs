@@ -11,12 +11,16 @@ async fn main() -> std::io::Result<()> {
     let configuration = get_configuration().expect("Failed to read configuration.");
 
     // Connect to DB pool
+    // we can use PgPool::connect_lazy if we want to connect only when the pool is actually being used
     let connection_pool = PgPool::connect(&configuration.database.connection_string())
         .await
         .expect("Failed to connect to Postgres.");
 
     // Bind to TCP port
-    let address = format!("127.0.0.1:{}", configuration.application_port);
+    let address = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     let listener = TcpListener::bind(address).expect("Failed to bind to port 8000.");
 
     run(listener, connection_pool)?.await?;
