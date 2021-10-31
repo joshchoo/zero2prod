@@ -41,6 +41,12 @@ run-trace:
 sqlx-prepare:
 	cargo sqlx prepare -- --lib
 
+sqlx-prepare-check:
+	cargo sqlx prepare --check -- --lib
+
 test-trace:
 	# we can prettify it by piping to `bunyan`, if installed
 	TEST_LOG=true cargo test
+
+docker-build:
+	docker build --tag zero2prod --file Dockerfile .
