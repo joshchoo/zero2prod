@@ -39,4 +39,5 @@ run-trace:
 	RUST_LOG=trace cargo run
 
 test-trace:
+	# we can prettify it by piping to `bunyan`, if installed
 	TEST_LOG=true cargo test
