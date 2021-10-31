@@ -2,7 +2,6 @@ use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use serde::Deserialize;
 use sqlx::PgPool;
-use tracing_futures::Instrument;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -11,30 +10,37 @@ pub struct SubscriberData {
     name: String,
 }
 
+// Clippy currently detects an issue between tracing::instrument and an actix_web handler: https://github.com/tokio-rs/tracing/issues/1450
+#[allow(clippy::async_yields_async)]
+#[tracing::instrument(
+    name = "Adding a new subscriber",
+    skip(form, pool),
+    fields(
+        request_id = %Uuid::new_v4(),
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
+    )
+)]
 pub async fn subscribe(
     // Extract form data from x-www-form-urlencoded
     form: web::Form<SubscriberData>,
     // Extract PgConnection from application state
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
-    let request_id = Uuid::new_v4();
-
-    // Logs the Adding a new subscriber.
-    let request_span = tracing::info_span!("Adding a new subscriber.", %request_id, subscriber_email = %form.email, subscriber_name = %form.name);
-    // Starts and logs the entry into span. When this variable drops, it will exit the span.
-    let _request_span_guard = request_span.enter();
-
     match insert_subscriber(&pool, &form).await {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
 
+#[tracing::instrument(
+    name = "Saving new subscriber details in the database"
+    skip(pool, subscriber)
+)]
 pub async fn insert_subscriber(
     pool: &PgPool,
     subscriber: &SubscriberData,
 ) -> Result<(), sqlx::Error> {
-    let query_span = tracing::info_span!("Saving new subscriber details in the database");
     sqlx::query!(
         r#"
     INSERT INTO subscriptions (id, email, name, subscribed_at)
@@ -46,7 +52,6 @@ pub async fn insert_subscriber(
         Utc::now()
     )
     .execute(pool)
-    .instrument(query_span)
     .await
     .map_err(|e| {
         tracing::error!("Failed to execute query: {:?}", e);
