@@ -24,29 +24,33 @@ pub async fn subscribe(
     // Starts and logs the entry into span. When this variable drops, it will exit the span.
     let _request_span_guard = request_span.enter();
 
+    match insert_subscriber(&pool, &form).await {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+pub async fn insert_subscriber(
+    pool: &PgPool,
+    subscriber: &SubscriberData,
+) -> Result<(), sqlx::Error> {
     let query_span = tracing::info_span!("Saving new subscriber details in the database");
-    match sqlx::query!(
+    sqlx::query!(
         r#"
     INSERT INTO subscriptions (id, email, name, subscribed_at)
     VALUES ($1, $2, $3, $4)
     "#,
         Uuid::new_v4(),
-        form.email,
-        form.name,
+        subscriber.email,
+        subscriber.name,
         Utc::now()
     )
-    .execute(pool.get_ref())
+    .execute(pool)
     .instrument(query_span)
     .await
-    {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(e) => {
-            tracing::error!(
-                "request_id {} - Failed to execute query: {:?}",
-                request_id,
-                e
-            );
-            HttpResponse::InternalServerError().finish()
-        }
-    }
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        e
+    })?;
+    Ok(())
 }
