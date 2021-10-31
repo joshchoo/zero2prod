@@ -15,8 +15,8 @@ pub struct SubscriberData {
 #[tracing::instrument(
     name = "Adding a new subscriber",
     skip(form, pool),
+    // Inject the following fields into all spans of the request
     fields(
-        request_id = %Uuid::new_v4(),
         subscriber_email = %form.email,
         subscriber_name = %form.name
     )
