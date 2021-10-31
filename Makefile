@@ -38,6 +38,9 @@ psql-columns:
 run-trace:
 	RUST_LOG=trace cargo run
 
+sqlx-prepare:
+	cargo sqlx prepare -- --lib
+
 test-trace:
 	# we can prettify it by piping to `bunyan`, if installed
 	TEST_LOG=true cargo test
