@@ -53,3 +53,6 @@ docker-build:
 
 docker-run:
 	docker run -p 8000:8000 zero2prod
+
+docker-run-local:
+	docker run -p 8000:8000 --net=host zero2prod
