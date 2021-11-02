@@ -2483,6 +2483,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "config",
+ "log",
  "once_cell",
  "reqwest",
  "serde 1.0.130",
