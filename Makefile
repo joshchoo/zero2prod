@@ -52,6 +52,9 @@ test-trace:
 	# we can prettify it by piping to `bunyan`, if installed
 	TEST_LOG=true cargo test
 
+build-offline:
+	SQLX_OFFLINE=true cargo build
+
 docker-build:
 	docker build --tag zero2prod --file Dockerfile .
 
