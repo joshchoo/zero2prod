@@ -23,6 +23,10 @@ ci-format:
 db-migrate:
 	SKIP_DOCKER=true ./scripts/init_db.sh
 
+do-migrate-db:
+	# Remember to disable "Trusted Sources" on Digital Ocean console before running this, and re-enable after.
+	DATABASE_URL=replace_me_with_connection_string sqlx migrate run
+
 init-db:
 	./scripts/init_db.sh
 
