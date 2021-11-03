@@ -30,14 +30,9 @@ impl AsRef<str> for SubscriberName {
     }
 }
 
-pub struct NewSubscriber {
-    pub email: String,
-    pub name: SubscriberName,
-}
-
 #[cfg(test)]
 mod subscriber_name_tests {
-    use super::SubscriberName;
+    use crate::domain::subscriber_name::SubscriberName;
     use claim::{assert_err, assert_ok};
 
     #[test]
