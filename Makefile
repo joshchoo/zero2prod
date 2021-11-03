@@ -48,6 +48,9 @@ sqlx-prepare:
 sqlx-prepare-check:
 	cargo sqlx prepare --check -- --lib
 
+test-nocapture:
+	cargo test -- --nocapture
+
 test-trace:
 	# we can prettify it by piping to `bunyan`, if installed
 	TEST_LOG=true cargo test
