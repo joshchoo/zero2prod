@@ -28,9 +28,13 @@ pub async fn subscribe(
     // Extract PgConnection from application state
     pool: web::Data<PgPool>,
 ) -> HttpResponse {
+    let name = match SubscriberName::parse(form.0.name) {
+        Ok(name) => name,
+        Err(_) => return HttpResponse::BadRequest().finish(),
+    };
     let new_subscriber = NewSubscriber {
         email: form.0.email,
-        name: SubscriberName::parse(form.0.name).expect("Name validation failed."),
+        name,
     };
     match insert_subscriber(&pool, &new_subscriber).await {
         Ok(_) => HttpResponse::Ok().finish(),
