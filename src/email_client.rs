@@ -1,5 +1,6 @@
 use crate::domain::SubscriberEmail;
 use reqwest::Client;
+use std::time::Duration;
 
 pub struct EmailClient {
     http_client: Client,
@@ -26,7 +27,11 @@ struct SendEmailRequest<'a> {
 impl EmailClient {
     pub fn new(base_url: String, sender: SubscriberEmail, authorization_token: String) -> Self {
         Self {
-            http_client: Client::new(),
+            http_client: Client::builder()
+                // reqwest does not set a timeout by default
+                .timeout(Duration::from_millis(10_000))
+                .build()
+                .unwrap(),
             base_url,
             sender,
             authorization_token,
@@ -54,6 +59,7 @@ impl EmailClient {
             // `json` method is available when the "json" feature is enabled on the `reqwest` crate
             // It automatically sets Content-Type to "application/json"
             .json(&request_body)
+            // .timeout(Duration::from_millis(5000))
             .send()
             .await?
             // Returns an Err when HTTP status code is greater than or equal to 400
@@ -70,6 +76,7 @@ mod tests {
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
+    use std::time::Duration;
     use wiremock::matchers::{any, header, header_exists, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
@@ -156,6 +163,29 @@ mod tests {
 
         Mock::given(any())
             .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        assert_err!(outcome);
+    }
+
+    #[tokio::test]
+    async fn send_email_times_out_if_the_server_takes_too_long() {
+        let mock_server = MockServer::start().await;
+        let sender = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let email_client = EmailClient::new(mock_server.uri(), sender, Faker.fake());
+
+        let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let subject: String = Sentence(1..2).fake();
+        let content: String = Paragraph(1..10).fake();
+
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(180)))
             .expect(1)
             .mount(&mock_server)
             .await;
