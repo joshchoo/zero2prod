@@ -10,17 +10,17 @@ pub struct EmailClient {
 
 #[derive(serde::Serialize)]
 // We could use #[serde(rename_all = "PascalCase")], but I'd prefer being explicit about the naming.
-struct SendEmailRequest {
+struct SendEmailRequest<'a> {
     #[serde(rename = "From")]
-    from: String,
+    from: &'a str,
     #[serde(rename = "To")]
-    to: String,
+    to: &'a str,
     #[serde(rename = "Subject")]
-    subject: String,
+    subject: &'a str,
     #[serde(rename = "TextBody")]
-    text_body: String,
+    text_body: &'a str,
     #[serde(rename = "HtmlBody")]
-    html_body: String,
+    html_body: &'a str,
 }
 
 impl EmailClient {
@@ -42,11 +42,11 @@ impl EmailClient {
     ) -> Result<(), reqwest::Error> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
-            from: self.sender.as_ref().into(),
-            to: subscriber_email.as_ref().into(),
-            subject: subject.into(),
-            text_body: text_content.into(),
-            html_body: html_content.into(),
+            from: self.sender.as_ref(),
+            to: subscriber_email.as_ref(),
+            subject,
+            text_body: text_content,
+            html_body: html_content,
         };
         self.http_client
             .post(url)
