@@ -25,11 +25,16 @@ struct SendEmailRequest<'a> {
 }
 
 impl EmailClient {
-    pub fn new(base_url: String, sender: SubscriberEmail, authorization_token: String) -> Self {
+    pub fn new(
+        base_url: String,
+        sender: SubscriberEmail,
+        authorization_token: String,
+        timeout: Duration,
+    ) -> Self {
         Self {
             http_client: Client::builder()
                 // reqwest does not set a timeout by default
-                .timeout(Duration::from_millis(10_000))
+                .timeout(timeout)
                 .build()
                 .unwrap(),
             base_url,
@@ -113,7 +118,7 @@ mod tests {
     }
 
     fn email_client(base_url: String) -> EmailClient {
-        EmailClient::new(base_url, email(), Faker.fake())
+        EmailClient::new(base_url, email(), Faker.fake(), Duration::from_millis(200))
     }
 
     #[tokio::test]
