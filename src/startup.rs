@@ -1,3 +1,4 @@
+use crate::email_client::EmailClient;
 use crate::routes;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
@@ -8,12 +9,20 @@ use tracing_actix_web::TracingLogger;
 // Return a Result to the Server, which the caller can .await.
 // If we choose to await here, it would be extremely difficult to run this
 // function in tokio::spawn (not sure why).
-pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Error> {
+pub fn run(
+    listener: TcpListener,
+    db_pool: PgPool,
+    email_client: EmailClient,
+) -> Result<Server, std::io::Error> {
     // App data (e.g. connection) needs to be cloneable. But PgConnection does not have .clone().
     // Instead, wrap the connection in a smart pointer - Data uses Atomic Reference Counter (Arc) internally.
     // Unlike Box, Arc allows multiple ownership of the data. Box does not provide .clone().
     // Arc increments the number of active references for every clone of it.
     let pool = web::Data::new(db_pool);
+
+    // Although EmailClient is cloneable, we want to avoid creating multiple base_url and sender copies.
+    // Hence we wrap EmailClient with web::Data, which uses an Arc under-the-hood.
+    let email_client = web::Data::new(email_client);
 
     // HttpServer::new takes a closure instead of an App because it needs to spin up multiple
     // worker processes and provide a different App to each of them.
@@ -31,6 +40,7 @@ pub fn run(listener: TcpListener, db_pool: PgPool) -> Result<Server, std::io::Er
             .route("/health_check", web::get().to(routes::health_check))
             .route("/subscriptions", web::post().to(routes::subscribe))
             .app_data(pool.clone())
+            .app_data(email_client.clone())
     })
     .listen(listener)?
     .run();
