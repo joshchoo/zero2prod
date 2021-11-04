@@ -4,5 +4,3 @@ database:
   require_ssl: true
 email_client:
   base_url: "https://api.postmarkapp.com/"
-  sender_email: "test@example.com"
-  authorization_token: "dummy-secret-token"
