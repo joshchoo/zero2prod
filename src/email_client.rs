@@ -5,6 +5,7 @@ pub struct EmailClient {
     http_client: Client,
     base_url: String,
     sender: SubscriberEmail,
+    authorization_token: String,
 }
 
 #[derive(serde::Serialize)]
@@ -17,11 +18,12 @@ struct SendEmailRequest {
 }
 
 impl EmailClient {
-    pub fn new(base_url: String, sender: SubscriberEmail) -> Self {
+    pub fn new(base_url: String, sender: SubscriberEmail, authorization_token: String) -> Self {
         Self {
             http_client: Client::new(),
             base_url,
             sender,
+            authorization_token,
         }
     }
 
@@ -43,7 +45,7 @@ impl EmailClient {
         match self
             .http_client
             .post(url)
-            .header("X-Postmark-Server-Token", "server_token")
+            .header("X-Postmark-Server-Token", &self.authorization_token)
             // `json` method is available when the "json" feature is enabled on the `reqwest` crate
             // It automatically sets Content-Type to "application/json"
             .json(&request_body)
@@ -62,7 +64,7 @@ mod tests {
     use crate::email_client::EmailClient;
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
-    use fake::Fake;
+    use fake::{Fake, Faker};
     use wiremock::matchers::any;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -72,7 +74,7 @@ mod tests {
         let mock_server = MockServer::start().await;
         let sender = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
         // Initialize an EmailClient with the mock server's address.
-        let email_client = EmailClient::new(mock_server.uri(), sender);
+        let email_client = EmailClient::new(mock_server.uri(), sender, Faker.fake());
 
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200))
