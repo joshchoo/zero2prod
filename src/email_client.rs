@@ -1,5 +1,5 @@
 use crate::domain::SubscriberEmail;
-use reqwest::{Client, Error};
+use reqwest::Client;
 
 pub struct EmailClient {
     http_client: Client,
@@ -9,11 +9,17 @@ pub struct EmailClient {
 }
 
 #[derive(serde::Serialize)]
+// We could use #[serde(rename_all = "PascalCase")], but I'd prefer being explicit about the naming.
 struct SendEmailRequest {
+    #[serde(rename = "From")]
     from: String,
+    #[serde(rename = "To")]
     to: String,
+    #[serde(rename = "Subject")]
     subject: String,
+    #[serde(rename = "TextBody")]
     text_body: String,
+    #[serde(rename = "HtmlBody")]
     html_body: String,
 }
 
