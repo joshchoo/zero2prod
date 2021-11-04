@@ -55,7 +55,9 @@ impl EmailClient {
             // It automatically sets Content-Type to "application/json"
             .json(&request_body)
             .send()
-            .await?;
+            .await?
+            // Returns an Err when HTTP status code is greater than or equal to 400
+            .error_for_status()?;
         Ok(())
     }
 }
@@ -64,10 +66,11 @@ impl EmailClient {
 mod tests {
     use crate::domain::SubscriberEmail;
     use crate::email_client::EmailClient;
+    use claim::{assert_err, assert_ok};
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
-    use wiremock::matchers::{header, header_exists, method, path};
+    use wiremock::matchers::{any, header, header_exists, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
     struct SendEmailBodyMatcher;
@@ -116,5 +119,51 @@ mod tests {
         let _ = email_client
             .send_email(subscriber_email, &subject, &content, &content)
             .await;
+    }
+
+    #[tokio::test]
+    async fn send_email_succeeds_if_the_server_returns_200() {
+        let mock_server = MockServer::start().await;
+        let sender = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let email_client = EmailClient::new(mock_server.uri(), sender, Faker.fake());
+
+        let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let subject: String = Sentence(1..2).fake();
+        let content: String = Paragraph(1..10).fake();
+
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        assert_ok!(outcome);
+    }
+
+    #[tokio::test]
+    async fn send_email_fails_if_the_server_returns_500() {
+        let mock_server = MockServer::start().await;
+        let sender = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let email_client = EmailClient::new(mock_server.uri(), sender, Faker.fake());
+
+        let subscriber_email = SubscriberEmail::parse(SafeEmail().fake()).unwrap();
+        let subject: String = Sentence(1..2).fake();
+        let content: String = Paragraph(1..10).fake();
+
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        assert_err!(outcome);
     }
 }
