@@ -1,5 +1,5 @@
 use crate::domain::SubscriberEmail;
-use reqwest::Client;
+use reqwest::{Client, Error};
 
 pub struct EmailClient {
     http_client: Client,
@@ -33,7 +33,7 @@ impl EmailClient {
         subject: &str,
         text_content: &str,
         html_content: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), reqwest::Error> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref().into(),
@@ -42,19 +42,15 @@ impl EmailClient {
             text_body: text_content.into(),
             html_body: html_content.into(),
         };
-        match self
-            .http_client
+        self.http_client
             .post(url)
             .header("X-Postmark-Server-Token", &self.authorization_token)
             // `json` method is available when the "json" feature is enabled on the `reqwest` crate
             // It automatically sets Content-Type to "application/json"
             .json(&request_body)
             .send()
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(_) => Err("An error occurred".into()),
-        }
+            .await?;
+        Ok(())
     }
 }
 
