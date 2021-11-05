@@ -11,6 +11,9 @@ format:
 test-coverage:
 	cargo tarpaulin --ignore-tests
 
+check-all:
+	cargo check --all-targets
+
 ci-audit:
 	cargo audit
 
