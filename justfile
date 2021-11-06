@@ -8,7 +8,7 @@ setup:
 	cargo install cargo-tarpaulin
 
 lint:
-	cargo clippy
+	cargo clippy --all-targets
 
 format:
 	cargo fmt
@@ -16,7 +16,7 @@ format:
 test-coverage:
 	cargo tarpaulin --ignore-tests
 
-check-all:
+check:
 	cargo check --all-targets
 
 ci-audit:
@@ -55,6 +55,9 @@ sqlx-prepare:
 
 sqlx-prepare-check:
 	cargo sqlx prepare --check -- --lib
+
+test:
+    cargo test
 
 test-nocapture:
 	cargo test -- --nocapture
