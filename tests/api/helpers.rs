@@ -1,10 +1,8 @@
 use once_cell::sync::Lazy;
 use sqlx::types::Uuid;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
-use std::net::TcpListener;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::email_client::EmailClient;
-use zero2prod::startup::run;
+use zero2prod::startup::{get_connection_pool, Application};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 pub struct TestApp {
@@ -29,42 +27,30 @@ pub async fn spawn_app() -> TestApp {
     // Execute the code in TRACING at most once. This prevents failures caused by initializing tracing multiple times.
     Lazy::force(&TRACING);
 
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port.");
-    let port = listener
-        .local_addr()
-        .expect("Failed to get the local socket address of the listener.")
-        .port();
-    let address = format!("http://127.0.0.1:{}", port);
+    let configuration = {
+        let mut config = get_configuration().expect("Failed to read configuration.");
+        // Assign a unique DB name
+        config.database.database_name = Uuid::new_v4().to_string();
+        // Setting the port to zero ensures we choose a random available port for each test
+        config.application.port = 0;
+        config
+    };
 
-    let mut configuration = get_configuration().expect("Failed to read configuration.");
+    // Create and migrate the database
+    configure_database(&configuration.database).await;
 
-    // Assign a unique DB name
-    configuration.database.database_name = Uuid::new_v4().to_string();
+    let application = Application::build(&configuration)
+        .await
+        .expect("Failed to build application.");
 
-    let connection_pool = configure_database(&configuration.database).await;
+    let address = format!("http://127.0.0.1:{}", application.port());
 
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration.email_client.base_url,
-        sender_email,
-        configuration.email_client.authorization_token,
-        timeout,
-    );
-
-    let server =
-        run(listener, connection_pool.clone(), email_client).expect("Failed to bind address");
-    // tokio::spawn will await Futures that it receives.
-    // tokio::spawn drops the task when the tokio runtime shuts down, so we don't
-    // need to worry about our Server persisting after the tests finish.
-    tokio::spawn(server);
+    // Run the application
+    tokio::spawn(application.run_until_stopped());
 
     TestApp {
+        db_pool: get_connection_pool(&configuration.database),
         address,
-        db_pool: connection_pool,
     }
 }
 
