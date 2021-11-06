@@ -1,3 +1,8 @@
+set dotenv-load := true
+
+default:
+    @just --list
+
 setup:
 	cargo install sqlx-cli --version=0.5.7 --no-default-features --features postgres
 	cargo install cargo-tarpaulin
