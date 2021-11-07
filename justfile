@@ -1,5 +1,7 @@
 set dotenv-load := true
 
+dockertag := "ghcr.io/joshchoo/zero2prod:latest"
+
 default:
     @just --list
 
@@ -70,10 +72,15 @@ build-offline:
 	SQLX_OFFLINE=true cargo build
 
 docker-build:
-	docker build --tag zero2prod --file Dockerfile .
+	docker build --tag {{dockertag}} --file Dockerfile .
 
 docker-run:
-	docker run -p 8000:8000 zero2prod
+	docker run -p 8000:8000 {{dockertag}}
 
 docker-run-local:
-	docker run -p 8000:8000 --net=host zero2prod
+	docker run -p 8000:8000 --net=host {{dockertag}}
+
+# Ensure that you are already logged in with `docker login ghcr.io`
+docker-publish:
+	docker build --tag {{dockertag}} --file Dockerfile .
+	docker push {{dockertag}}
