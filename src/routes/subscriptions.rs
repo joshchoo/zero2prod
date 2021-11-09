@@ -95,7 +95,7 @@ pub async fn insert_subscriber(
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
         Utc::now(),
-        "confirmed"
+        "pending_confirmation"
     )
     .execute(pool)
     .await
