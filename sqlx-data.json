@@ -1,7 +1,7 @@
 {
   "db": "PostgreSQL",
-  "4a1c526df578752272a05ab0ced36ca13d96ac8aae0c2f60038e181831312065": {
-    "query": "\n    INSERT INTO subscriptions (id, email, name, subscribed_at)\n    VALUES ($1, $2, $3, $4)\n    ",
+  "fa7aebd9339b30891ff19198abc2b1dfd7520e027f0a148cc6b3f99dbd8a9d93": {
+    "query": "\n    INSERT INTO subscriptions (id, email, name, subscribed_at, status)\n    VALUES ($1, $2, $3, $4, $5)\n    ",
     "describe": {
       "columns": [],
       "parameters": {
@@ -9,7 +9,8 @@
           "Uuid",
           "Text",
           "Text",
-          "Timestamptz"
+          "Timestamptz",
+          "Text"
         ]
       },
       "nullable": []
