@@ -1,4 +1,4 @@
-use crate::domain::NewSubscriber;
+use crate::{domain::NewSubscriber, email_client::EmailClient};
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use serde::Deserialize;
@@ -16,7 +16,7 @@ pub struct SubscriberData {
 #[allow(clippy::async_yields_async)]
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, pool),
+    skip(form, pool, email_client),
     // Inject the following fields into all spans of the request
     fields(
         subscriber_email = %form.email,
@@ -28,15 +28,32 @@ pub async fn subscribe(
     form: web::Form<SubscriberData>,
     // Extract PgConnection from application state
     pool: web::Data<PgPool>,
+    // Extract EmailClient from application state
+    email_client: web::Data<EmailClient>,
 ) -> HttpResponse {
     let new_subscriber: NewSubscriber = match form.0.try_into() {
         Ok(form) => form,
         Err(_) => return HttpResponse::BadRequest().finish(),
     };
-    match insert_subscriber(&pool, &new_subscriber).await {
-        Ok(_) => HttpResponse::Ok().finish(),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+
+    if insert_subscriber(&pool, &new_subscriber).await.is_err() {
+        return HttpResponse::InternalServerError().finish();
     }
+
+    if email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            "Welcome to our newsletter!",
+            "<p>Welcome to our newsletter!</p>",
+        )
+        .await
+        .is_err()
+    {
+        return HttpResponse::InternalServerError().finish();
+    };
+
+    HttpResponse::Ok().finish()
 }
 
 #[tracing::instrument(
