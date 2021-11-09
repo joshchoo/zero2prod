@@ -30,6 +30,9 @@ ci-lint:
 ci-format:
 	cargo fmt -- --check
 
+create-migration description:
+	sqlx migrate add {{description}}
+
 db-migrate:
 	SKIP_DOCKER=true ./scripts/init_db.sh
 
