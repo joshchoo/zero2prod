@@ -62,14 +62,16 @@ sqlx-prepare-check:
 	cargo sqlx prepare --check -- --lib
 
 test:
-    cargo test
+  just sqlx-prepare-check
+  cargo test
 
 test-nocapture:
+	just sqlx-prepare-check
 	cargo test -- --nocapture
 
 test-trace:
 	# we can prettify it by piping to `bunyan`, if installed
-	TEST_LOG=true cargo test
+	TEST_LOG=true just test
 
 build-offline:
 	SQLX_OFFLINE=true cargo build
