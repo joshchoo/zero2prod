@@ -4,19 +4,10 @@ https://github.com/LukeMathWalker/zero-to-production
 
 # Requirements
 
-- direnv (optional)
 - docker
 - [just](https://github.com/casey/just) (optional)
 - [psql](https://blog.timescale.com/blog/how-to-install-psql-on-mac-ubuntu-debian-windows/)
 - sqlx (see instructions below)
-
-# Environment variables
-
-To automatically load environement variables from the `.envrc`, run the following in this folder:
-
-```bash
-direnv allow .
-```
 
 # sqlx-cli
 
