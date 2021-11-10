@@ -1,4 +1,4 @@
-use crate::{domain::NewSubscriber, email_client::EmailClient};
+use crate::{domain::NewSubscriber, email_client::EmailClient, startup::ApplicationBaseUrl};
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use serde::Deserialize;
@@ -16,7 +16,7 @@ pub struct SubscriberData {
 #[allow(clippy::async_yields_async)]
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(form, pool, email_client),
+    skip(form, pool, email_client, base_url),
     // Inject the following fields into all spans of the request
     fields(
         subscriber_email = %form.email,
@@ -30,6 +30,7 @@ pub async fn subscribe(
     pool: web::Data<PgPool>,
     // Extract EmailClient from application state
     email_client: web::Data<EmailClient>,
+    base_url: web::Data<ApplicationBaseUrl>,
 ) -> HttpResponse {
     let new_subscriber: NewSubscriber = match form.0.try_into() {
         Ok(form) => form,
@@ -40,7 +41,7 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if send_confirmation_email(&email_client, new_subscriber)
+    if send_confirmation_email(&email_client, new_subscriber, &base_url.0)
         .await
         .is_err()
     {
@@ -57,8 +58,13 @@ pub async fn subscribe(
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
+    base_url: &str,
 ) -> Result<(), reqwest::Error> {
-    let confirmation_link = "https://placeholder.com/subscriptions/confirm";
+    // TODO: Replace hard-coded subscription_token
+    let confirmation_link = format!(
+        "{}/subscriptions/confirm?subscription_token=myToken",
+        base_url
+    );
     let html_body = format!(
         "Welcome to our newsletter!<br />\
     Click <a href=\"{}\">here</a> to confirm your subscription.",

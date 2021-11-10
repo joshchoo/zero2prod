@@ -95,6 +95,7 @@ pub fn run(
             // "/" implements the Guard trait and passes the request on only if it fulfils.
             // web::get() is short for Route::new().guard(guard::Get()) and passes only GET requests through to the handler
             .route("/health_check", web::get().to(routes::health_check))
+            .route("/subscriptions/confirm", web::get().to(routes::confirm))
             .route("/subscriptions", web::post().to(routes::subscribe))
             .app_data(pool.clone())
             .app_data(email_client.clone())
