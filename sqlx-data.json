@@ -1,5 +1,18 @@
 {
   "db": "PostgreSQL",
+  "0a8192e5b76509d1c3bbbcb489efb924c9002aa7634b3697d09d4d20c7091f3e": {
+    "query": "INSERT INTO subscription_tokens (subscription_token, subscriber_id) VALUES($1, $2)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Uuid"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "fa7aebd9339b30891ff19198abc2b1dfd7520e027f0a148cc6b3f99dbd8a9d93": {
     "query": "\n    INSERT INTO subscriptions (id, email, name, subscribed_at, status)\n    VALUES ($1, $2, $3, $4, $5)\n    ",
     "describe": {
