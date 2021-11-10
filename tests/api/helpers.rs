@@ -57,7 +57,7 @@ pub async fn spawn_app() -> TestApp {
     // Create and migrate the database
     configure_database(&configuration.database).await;
 
-    let application = Application::build(&configuration)
+    let application = Application::build(configuration.clone())
         .await
         .expect("Failed to build application.");
 

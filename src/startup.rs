@@ -15,7 +15,7 @@ pub struct Application {
 
 impl Application {
     /// Initializes database connections, email client, binds to TCP port and returns a Server.
-    pub async fn build(configuration: &Settings) -> Result<Self, std::io::Error> {
+    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
         let connection_pool = get_connection_pool(&configuration.database);
         let sender_email = configuration
             .email_client
@@ -23,9 +23,9 @@ impl Application {
             .expect("Invalid sender email address.");
         let timeout = configuration.email_client.timeout();
         let email_client = EmailClient::new(
-            configuration.email_client.base_url.clone(),
+            configuration.email_client.base_url,
             sender_email,
-            configuration.email_client.authorization_token.clone(),
+            configuration.email_client.authorization_token,
             timeout,
         );
         let address = format!(
