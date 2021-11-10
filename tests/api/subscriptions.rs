@@ -1,4 +1,3 @@
-use linkify::{LinkFinder, LinkKind};
 use wiremock::{
     matchers::{method, path},
     Mock, ResponseTemplate,
@@ -117,22 +116,7 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
         .received_requests()
         .await
         .expect("Failed to query mock server for received reqeusts.")[0];
-    let body: serde_json::Value =
-        serde_json::from_slice(&email_request.body).expect("Failed to deserialize request body.");
-    let html_link =
-        find_url(body["HtmlBody"].as_str().unwrap()).expect("Link not found in HTML body.");
-    let body_link =
-        find_url(body["TextBody"].as_str().unwrap()).expect("Link not found in text body.");
-    assert_eq!(html_link, body_link);
-}
 
-fn find_url(s: &str) -> Option<String> {
-    let links: Vec<_> = LinkFinder::new()
-        .links(s)
-        .filter(|l| *l.kind() == LinkKind::Url)
-        .collect();
-    match links.len() {
-        0 => None,
-        _ => Some(links[0].as_str().into()),
-    }
+    let confirmation_links = app.get_confirmation_links(email_request);
+    assert_eq!(confirmation_links.html, confirmation_links.plain_text);
 }

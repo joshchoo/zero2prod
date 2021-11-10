@@ -23,6 +23,52 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
+        let body: serde_json::Value = serde_json::from_slice(&email_request.body)
+            .expect("Failed to deserialize request body.");
+        let html = self
+            .find_url(body["HtmlBody"].as_str().unwrap())
+            .expect("Link not found in HTML body.");
+        let plain_text = self
+            .find_url(body["TextBody"].as_str().unwrap())
+            .expect("Link not found in text body.");
+
+        ConfirmationLinks { html, plain_text }
+    }
+
+    fn find_url(&self, s: &str) -> Option<reqwest::Url> {
+        let links: Vec<_> = linkify::LinkFinder::new()
+            .links(s)
+            .filter(|l| *l.kind() == linkify::LinkKind::Url)
+            .collect();
+        match links.len() {
+            0 => None,
+            _ => {
+                let raw_link: String = links[0].as_str().into();
+                let mut confirmation_link = reqwest::Url::parse(&raw_link)
+                    .unwrap_or_else(|_| panic!("Failed to parse URL: {}", raw_link));
+
+                // Make sure not to call non-local APIs
+                let host = confirmation_link.host_str().unwrap_or_else(|| {
+                    panic!("Failed to get host string from {}", confirmation_link)
+                });
+                assert_eq!(host, "127.0.0.1");
+
+                // Workaround: In production, the base URL does not require a port number. However in local development,
+                // the server requires the port. Otherwise, the following GET request will fail.
+                confirmation_link
+                    .set_port(Some(self.port))
+                    .unwrap_or_else(|_| panic!("Failed to set port: {}", self.port));
+                Some(confirmation_link)
+            }
+        }
+    }
+}
+
+pub struct ConfirmationLinks {
+    pub html: reqwest::Url,
+    pub plain_text: reqwest::Url,
 }
 
 static TRACING: Lazy<()> = Lazy::new(|| {
