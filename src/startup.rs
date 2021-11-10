@@ -34,7 +34,12 @@ impl Application {
         );
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr().unwrap().port();
-        let server = run(listener, connection_pool, email_client)?;
+        let server = run(
+            listener,
+            connection_pool,
+            email_client,
+            configuration.application.base_url,
+        )?;
         Ok(Self { port, server })
     }
 
@@ -53,6 +58,8 @@ pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
         .connect_lazy_with(configuration.with_db())
 }
 
+pub struct ApplicationBaseUrl(pub String);
+
 // Return a Result to the Server, which the caller can .await.
 // If we choose to await here, it would be extremely difficult to run this
 // function in tokio::spawn (not sure why).
@@ -60,6 +67,7 @@ pub fn run(
     listener: TcpListener,
     db_pool: PgPool,
     email_client: EmailClient,
+    base_url: String,
 ) -> Result<Server, std::io::Error> {
     // App data (e.g. connection) needs to be cloneable. But PgConnection does not have .clone().
     // Instead, wrap the connection in a smart pointer - Data uses Atomic Reference Counter (Arc) internally.
@@ -70,6 +78,8 @@ pub fn run(
     // Although EmailClient is cloneable, we want to avoid creating multiple base_url and sender copies.
     // Hence we wrap EmailClient with web::Data, which uses an Arc under-the-hood.
     let email_client = web::Data::new(email_client);
+
+    let base_url = web::Data::new(ApplicationBaseUrl(base_url));
 
     // HttpServer::new takes a closure instead of an App because it needs to spin up multiple
     // worker processes and provide a different App to each of them.
@@ -88,6 +98,7 @@ pub fn run(
             .route("/subscriptions", web::post().to(routes::subscribe))
             .app_data(pool.clone())
             .app_data(email_client.clone())
+            .app_data(base_url.clone())
     })
     .listen(listener)?
     .run();
