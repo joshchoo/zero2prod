@@ -1,6 +1,7 @@
 use crate::{domain::NewSubscriber, email_client::EmailClient, startup::ApplicationBaseUrl};
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::convert::TryInto;
@@ -41,9 +42,15 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
 
-    if send_confirmation_email(&email_client, new_subscriber, &base_url.0)
-        .await
-        .is_err()
+    let subscription_token = generate_subscription_token();
+    if send_confirmation_email(
+        &email_client,
+        new_subscriber,
+        &base_url.0,
+        &subscription_token,
+    )
+    .await
+    .is_err()
     {
         return HttpResponse::InternalServerError().finish();
     };
@@ -59,11 +66,11 @@ pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
     base_url: &str,
+    subscription_token: &str,
 ) -> Result<(), reqwest::Error> {
-    // TODO: Replace hard-coded subscription_token
     let confirmation_link = format!(
-        "{}/subscriptions/confirm?subscription_token=myToken",
-        base_url
+        "{}/subscriptions/confirm?subscription_token={}",
+        base_url, subscription_token
     );
     let html_body = format!(
         "Welcome to our newsletter!<br />\
@@ -110,4 +117,12 @@ pub async fn insert_subscriber(
         e
     })?;
     Ok(())
+}
+
+fn generate_subscription_token() -> String {
+    let rng = thread_rng();
+    rng.sample_iter(Alphanumeric)
+        .map(char::from)
+        .take(25)
+        .collect()
 }
