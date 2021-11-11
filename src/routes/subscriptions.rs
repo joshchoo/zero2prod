@@ -1,5 +1,5 @@
 use crate::{domain::NewSubscriber, email_client::EmailClient, startup::ApplicationBaseUrl};
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpResponse, ResponseError};
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::Deserialize;
@@ -167,4 +167,19 @@ async fn store_token(
         e
     })?;
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct StoreTokenError(sqlx::Error);
+
+impl ResponseError for StoreTokenError {}
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database error was encountered while \
+        trying to store a subscription token."
+        )
+    }
 }
