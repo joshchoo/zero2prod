@@ -32,7 +32,8 @@ pub async fn subscribe(
     // Extract EmailClient from application state
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
-) -> Result<HttpResponse, actix_web::Error> {
+    // SubscribeError implements the needed actix_web::ResponseError
+) -> Result<HttpResponse, SubscribeError> {
     let new_subscriber: NewSubscriber = match form.0.try_into() {
         Ok(form) => form,
         Err(_) => return Ok(HttpResponse::BadRequest().finish()),
@@ -164,9 +165,51 @@ async fn store_token(
     Ok(())
 }
 
-pub struct StoreTokenError(sqlx::Error);
+/// SubscribeError represents all the errors that could happen during subscription.
+#[derive(Debug)]
+pub enum SubscribeError {
+    ValidationError(String),
+    DatabaseError(sqlx::Error),
+    StoreTokenError(StoreTokenError),
+    SendEmailError(reqwest::Error),
+}
 
-impl ResponseError for StoreTokenError {}
+impl std::fmt::Display for SubscribeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Failed to create a new subscriber.")
+    }
+}
+
+impl std::error::Error for SubscribeError {}
+
+impl ResponseError for SubscribeError {}
+
+// Implementing `From` for each enum allows automatic type conversion when propagating with `?`.
+impl From<reqwest::Error> for SubscribeError {
+    fn from(e: reqwest::Error) -> Self {
+        Self::SendEmailError(e)
+    }
+}
+
+impl From<sqlx::Error> for SubscribeError {
+    fn from(e: sqlx::Error) -> Self {
+        Self::DatabaseError(e)
+    }
+}
+
+impl From<StoreTokenError> for SubscribeError {
+    fn from(e: StoreTokenError) -> Self {
+        Self::StoreTokenError(e)
+    }
+}
+
+impl From<String> for SubscribeError {
+    fn from(e: String) -> Self {
+        Self::ValidationError(e)
+    }
+}
+
+pub struct StoreTokenError(sqlx::Error);
 
 // exception.message
 impl std::fmt::Display for StoreTokenError {
