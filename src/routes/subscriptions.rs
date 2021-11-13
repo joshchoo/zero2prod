@@ -1,4 +1,5 @@
 use crate::{domain::NewSubscriber, email_client::EmailClient, startup::ApplicationBaseUrl};
+use actix_http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
@@ -182,7 +183,17 @@ impl std::fmt::Display for SubscribeError {
 
 impl std::error::Error for SubscribeError {}
 
-impl ResponseError for SubscribeError {}
+impl ResponseError for SubscribeError {
+    // The default status code will be InternalServerError if `ResponseError::status_code` isn't implemented.
+    fn status_code(&self) -> actix_http::StatusCode {
+        match self {
+            Self::ValidationError(_) => StatusCode::BAD_REQUEST,
+            Self::DatabaseError(_) | Self::StoreTokenError(_) | Self::SendEmailError(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+    }
+}
 
 // Implementing `From` for each enum allows automatic type conversion when propagating with `?`.
 impl From<reqwest::Error> for SubscribeError {
