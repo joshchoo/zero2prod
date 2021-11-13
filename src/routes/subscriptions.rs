@@ -145,7 +145,6 @@ async fn store_token(
 }
 
 /// SubscribeError represents all the errors that could happen during subscription.
-#[derive(Debug)]
 pub enum SubscribeError {
     ValidationError(String),
     DatabaseError(sqlx::Error),
@@ -153,13 +152,38 @@ pub enum SubscribeError {
     SendEmailError(reqwest::Error),
 }
 
-impl std::fmt::Display for SubscribeError {
+impl std::fmt::Debug for SubscribeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Failed to create a new subscriber.")
+        error_chain_fmt(self, f)
     }
 }
 
-impl std::error::Error for SubscribeError {}
+impl std::fmt::Display for SubscribeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ValidationError(e) => write!(f, "{}", e),
+            Self::DatabaseError(_) => write!(f, "???"),
+            Self::StoreTokenError(_) => write!(
+                f,
+                "Failed to store the confirmation token for a new subscriber."
+            ),
+            Self::SendEmailError(_) => {
+                write!(f, "Failed to send a confirmation email.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SubscribeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ValidationError(e) => None,
+            Self::StoreTokenError(e) => Some(e),
+            Self::SendEmailError(e) => Some(e),
+            Self::DatabaseError(e) => Some(e),
+        }
+    }
+}
 
 impl ResponseError for SubscribeError {
     // The default status code will be InternalServerError if `ResponseError::status_code` isn't implemented.
@@ -232,6 +256,7 @@ fn error_chain_fmt(
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
     writeln!(f, "{}\n", e)?;
+    // `source` allows us to identify the error cause in the callstack
     let mut current = e.source();
     while let Some(cause) = current {
         writeln!(f, "Caused by:\n\t{}", cause)?;
