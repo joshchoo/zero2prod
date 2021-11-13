@@ -37,23 +37,32 @@ pub async fn subscribe(
 ) -> Result<HttpResponse, SubscribeError> {
     let new_subscriber: NewSubscriber =
         form.0.try_into().map_err(SubscribeError::ValidationError)?;
-    let mut transaction = pool.begin().await.map_err(SubscribeError::PoolError)?;
+    // let mut transaction = pool.begin().await.map_err(SubscribeError::PoolError)?;
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
-        .map_err(SubscribeError::InsertSubscriberError)?;
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+    // .map_err(SubscribeError::InsertSubscriberError)?;
     let subscription_token = generate_subscription_token();
-    store_token(&mut transaction, subscriber_id, &subscription_token).await?;
+    store_token(&mut transaction, subscriber_id, &subscription_token)
+        .await
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
     transaction
         .commit()
         .await
-        .map_err(SubscribeError::TransactionCommitError)?;
+        .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
+    // .map_err(SubscribeError::TransactionCommitError)?;
     send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token,
     )
-    .await?;
+    .await
+    .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -155,17 +164,20 @@ async fn store_token(
 pub enum SubscribeError {
     #[error("{0}")] // Interpolates the inner String as the Display value
     ValidationError(String),
-    // The error macro is used for the Display implementation
-    #[error("Failed to store the confirmation token for a new subscriber.")]
-    StoreTokenError(#[from] StoreTokenError), // #[from] also acts as #[source] implicitly
-    #[error("Failed to send a confirmation email.")]
-    SendEmailError(#[from] reqwest::Error),
-    #[error("Failed to acquire a Postgres connection from the pool.")]
-    PoolError(#[source] sqlx::Error),
-    #[error("Failed to insert a new subscriber in the database.")]
-    InsertSubscriberError(#[source] sqlx::Error),
-    #[error("Failed to commit SQL transaction to store a new subscriber.")]
-    TransactionCommitError(#[source] sqlx::Error),
+    // `transparent` delegates `Display` and `source` implementations to the type wrapped by `UnexpectedError`
+    #[error(transparent)]
+    UnexpectedError(#[from] Box<dyn std::error::Error>),
+    // // The error macro is used for the Display implementation
+    // #[error("Failed to store the confirmation token for a new subscriber.")]
+    // StoreTokenError(#[from] StoreTokenError), // #[from] also acts as #[source] implicitly
+    // #[error("Failed to send a confirmation email.")]
+    // SendEmailError(#[from] reqwest::Error),
+    // #[error("Failed to acquire a Postgres connection from the pool.")]
+    // PoolError(#[source] sqlx::Error),
+    // #[error("Failed to insert a new subscriber in the database.")]
+    // InsertSubscriberError(#[source] sqlx::Error),
+    // #[error("Failed to commit SQL transaction to store a new subscriber.")]
+    // TransactionCommitError(#[source] sqlx::Error),
 }
 
 impl std::fmt::Debug for SubscribeError {
@@ -179,11 +191,12 @@ impl ResponseError for SubscribeError {
     fn status_code(&self) -> actix_http::StatusCode {
         match self {
             Self::ValidationError(_) => StatusCode::BAD_REQUEST,
-            Self::StoreTokenError(_)
-            | Self::SendEmailError(_)
-            | Self::PoolError(_)
-            | Self::InsertSubscriberError(_)
-            | Self::TransactionCommitError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            // Self::StoreTokenError(_)
+            // | Self::SendEmailError(_)
+            // | Self::PoolError(_)
+            // | Self::InsertSubscriberError(_)
+            // | Self::TransactionCommitError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
