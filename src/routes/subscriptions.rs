@@ -271,6 +271,7 @@ fn error_chain_fmt(
     e: &impl std::error::Error,
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
+    // This line invokes the `Display.fmt` method on the error `e`
     writeln!(f, "{}\n", e)?;
     // `source` allows us to identify the error cause in the callstack
     let mut current = e.source();
