@@ -1,6 +1,7 @@
 use crate::{domain::NewSubscriber, email_client::EmailClient, startup::ApplicationBaseUrl};
 use actix_http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
+use anyhow::Context;
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::Deserialize;
@@ -38,36 +39,31 @@ pub async fn subscribe(
     let new_subscriber: NewSubscriber =
         form.0.try_into().map_err(SubscribeError::ValidationError)?;
     // let mut transaction = pool.begin().await.map_err(SubscribeError::PoolError)?;
-    let mut transaction = pool.begin().await.map_err(|e| {
-        SubscribeError::UnexpectedError(
-            Box::new(e),
-            "Failed to acquire a Postgres connection from the pool".into(),
-        )
-    })?;
+    let mut transaction = pool
+        .begin()
+        .await
+        // .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))
+        /*
+        The `context` method is made available by the anyhow::Context trait on Result and Option types
+        It converts a Result<..., SomeError> to Result<..., anyhow::Error>
+        Since we implemented `From<anyhow::Error> for SubscribeError`, it will automatically convert to SubscribeError when propagated with '?'.
+        */
+        .context("Failed to acquire a Postgres connection from the pool")?;
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
-        .map_err(|e| {
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to insert a new subscriber in the database".into(),
-            )
-        })?;
+        // .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))
+        .context("Failed to insert a new subscriber in the database")?;
     // .map_err(SubscribeError::InsertSubscriberError)?;
     let subscription_token = generate_subscription_token();
     store_token(&mut transaction, subscriber_id, &subscription_token)
         .await
-        .map_err(|e| {
-            SubscribeError::UnexpectedError(
-                Box::new(e),
-                "Failed to store the confirmation token for a new subscriber".into(),
-            )
-        })?;
-    transaction.commit().await.map_err(|e| {
-        SubscribeError::UnexpectedError(
-            Box::new(e),
-            "Failed to commit SQL transaction to store a new subscriber".into(),
-        )
-    })?;
+        // .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))
+        .context("Failed to store the confirmation token for a new subscriber")?;
+    transaction
+        .commit()
+        .await
+        // .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))
+        .context("Failed to commit SQL transaction to store a new subscriber")?;
     // .map_err(SubscribeError::TransactionCommitError)?;
     send_confirmation_email(
         &email_client,
@@ -76,9 +72,8 @@ pub async fn subscribe(
         &subscription_token,
     )
     .await
-    .map_err(|e| {
-        SubscribeError::UnexpectedError(Box::new(e), "Failed to send a confirmation email".into())
-    })?;
+    // .map_err(|e| SubscribeError::UnexpectedError(Box::new(e)))
+    .context("Failed to send a confirmation email")?;
     Ok(HttpResponse::Ok().finish())
 }
 
@@ -180,8 +175,11 @@ async fn store_token(
 pub enum SubscribeError {
     #[error("{0}")] // Interpolates the inner String as the Display value
     ValidationError(String),
-    #[error("{1}")] // Interpolates the second argument (the String) as the Display value
-    UnexpectedError(#[source] Box<dyn std::error::Error>, String),
+    // `transparent` delegates `Display` and `source` implementations to `anyhow::Error`
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+    // #[error("{1}")] // Interpolates the second argument (the String) as the Display value
+    // UnexpectedError(#[source] Box<dyn std::error::Error>, String),
     // // The error macro is used for the Display implementation
     // #[error("Failed to store the confirmation token for a new subscriber.")]
     // StoreTokenError(#[from] StoreTokenError), // #[from] also acts as #[source] implicitly
@@ -206,7 +204,7 @@ impl ResponseError for SubscribeError {
     fn status_code(&self) -> actix_http::StatusCode {
         match self {
             Self::ValidationError(_) => StatusCode::BAD_REQUEST,
-            Self::UnexpectedError(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             // Self::StoreTokenError(_)
             // | Self::SendEmailError(_)
             // | Self::PoolError(_)
