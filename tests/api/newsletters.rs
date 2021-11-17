@@ -83,6 +83,27 @@ async fn newsletters_returns_400_for_invalid_data() {
     }
 }
 
+#[actix_rt::test]
+async fn requests_missing_authorization_are_rejected_with_challenge() {
+    let app = spawn_app().await;
+
+    let request_body = serde_json::json!({
+        "title": "Newsletter title",
+        "content": {
+            "text": "Newsletter body as plain text",
+            "html": "<p>Newsletter body as HTML</p>"
+        }
+    });
+
+    let response = app.post_newsletters(request_body).await;
+
+    assert_eq!(response.status().as_u16(), 401);
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        response.headers()["WWW-Authenticate"]
+    );
+}
+
 // Create a test helper to drive application state (black-box approach).
 async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
