@@ -95,7 +95,12 @@ async fn requests_missing_authorization_are_rejected_with_challenge() {
         }
     });
 
-    let response = app.post_newsletters(request_body).await;
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .json(&request_body)
+        .send()
+        .await
+        .expect("Failed to execute request.");
 
     assert_eq!(response.status().as_u16(), 401);
     assert_eq!(
