@@ -4,7 +4,7 @@ use actix_http::{
 };
 use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
-use sha3::Digest;
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use sqlx::PgPool;
 
 use crate::{domain::SubscriberEmail, email_client::EmailClient, routes::error_chain_fmt};
@@ -59,30 +59,39 @@ async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, PublishError> {
-    let password_hash_bytes = sha3::Sha3_256::digest(credentials.password.as_bytes());
-    let password_hash_hexadecimal = format!("{:x}", password_hash_bytes);
-    let user_id: Option<_> = sqlx::query!(
+    let row: Option<_> = sqlx::query!(
         r#"
-        SELECT user_id
+        SELECT user_id, password_hash
         FROM users
-        WHERE username = $1 AND password_hash = $2
+        WHERE username = $1
         "#,
         credentials.username,
-        password_hash_hexadecimal,
     )
     .fetch_optional(pool)
     .await
     .context("Failed to perform a query to validate auth credentials.")
     .map_err(PublishError::UnexpectedError)?;
 
-    // Option<Record>
-    user_id
-        // Option<Record> -> Option<Uuid>
-        .map(|row| row.user_id)
-        // Option<Uuid> -> Result<Uuid, anyhow::Error>
-        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
-        // Result<Uuid, anyhow::Error> -> Result<Uuid, PublishError::AuthError>
-        .map_err(PublishError::AuthError)
+    // expected_password_hash is stored in PHC string format: "${algorithm}${algorithm version}${$-separated algorithm parameters}${hash}${salt}"
+    let (expected_password_hash, user_id) = match row {
+        Some(row) => (row.password_hash, row.user_id),
+        None => {
+            return Err(PublishError::AuthError(anyhow::anyhow!(
+                "Unknown username."
+            )))
+        }
+    };
+
+    let expected_password_hash = PasswordHash::new(&expected_password_hash)
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexpectedError)?;
+
+    Argon2::default()
+        .verify_password(credentials.password.as_bytes(), &expected_password_hash)
+        .context("Invalid password.")
+        .map_err(PublishError::AuthError)?;
+
+    Ok(user_id)
 }
 
 #[tracing::instrument(
@@ -182,6 +191,7 @@ pub enum PublishError {
     #[error("Authentication failed.")]
     AuthError(#[source] anyhow::Error),
     #[error(transparent)]
+    // Only one variant can use #[from] for the same wrapped data type. In this case, anyhow::Errors propagated by "?" will be transformed to UnexpectedError.
     UnexpectedError(#[from] anyhow::Error),
 }
 
