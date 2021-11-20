@@ -67,11 +67,13 @@ async fn validate_credentials(
         // Using ok_or_else converts the Option to Result and makes it convenient to propagate any Err with `?`.
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username.")))?;
 
+    let current_span = tracing::Span::current();
     // Move CPU-intensive hashing to a separate thread
     actix_web::rt::task::spawn_blocking(move || {
         // tracing::info_span!("Verify password hash")
         //     .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
-        verify_password_hash(expected_password_hash_phc, credentials.password)
+        current_span
+            .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
     })
     .await
     .context("failed to spawn blocking task.")
