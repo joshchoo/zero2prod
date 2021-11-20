@@ -67,13 +67,17 @@ async fn validate_credentials(
         // Using ok_or_else converts the Option to Result and makes it convenient to propagate any Err with `?`.
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username.")))?;
 
-    let current_span = tracing::Span::current();
+    // let current_span = tracing::Span::current();
+    // actix_web::rt::task::spawn_blocking(move || {
+    //     // tracing::info_span!("Verify password hash")
+    //     //     .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
+    //     current_span
+    //         .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
+    // })
+
     // Move CPU-intensive hashing to a separate thread
-    actix_web::rt::task::spawn_blocking(move || {
-        // tracing::info_span!("Verify password hash")
-        //     .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
-        current_span
-            .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
+    spawn_blocking_with_tracing(move || {
+        verify_password_hash(expected_password_hash_phc, credentials.password)
     })
     .await
     .context("failed to spawn blocking task.")
@@ -99,6 +103,16 @@ fn verify_password_hash(
         .verify_password(password_candidate.as_bytes(), &expected_password_hash)
         .context("Invalid password")
         .map_err(PublishError::AuthError)
+}
+
+// Copied function signature from `spawn_blocking`
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> actix_web::rt::task::JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let current_span = tracing::Span::current();
+    actix_web::rt::task::spawn_blocking(move || current_span.in_scope(f))
 }
 
 #[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
