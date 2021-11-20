@@ -67,20 +67,36 @@ async fn validate_credentials(
         // Using ok_or_else converts the Option to Result and makes it convenient to propagate any Err with `?`.
         .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username.")))?;
 
-    let expected_password_hash = PasswordHash::new(&expected_password_hash_phc)
-        .context("Failed to parse hash in PHC string format.")
-        .map_err(PublishError::UnexpectedError)?;
-
-    tracing::info_span!("Verify password hash")
-        .in_scope(|| {
-            // Execute the function within the scope of this span.
-            Argon2::default()
-                .verify_password(credentials.password.as_bytes(), &expected_password_hash)
-        })
-        .context("Invalid password.")
-        .map_err(PublishError::AuthError)?;
+    // Move CPU-intensive hashing to a separate thread
+    actix_web::rt::task::spawn_blocking(move || {
+        // tracing::info_span!("Verify password hash")
+        //     .in_scope(|| verify_password_hash(expected_password_hash_phc, credentials.password))
+        verify_password_hash(expected_password_hash_phc, credentials.password)
+    })
+    .await
+    .context("failed to spawn blocking task.")
+    .map_err(PublishError::UnexpectedError)??;
 
     Ok(user_id)
+}
+
+#[tracing::instrument(
+    name = "Verify password hash",
+    skip(expected_password_hash_phc, password_candidate)
+)]
+fn verify_password_hash(
+    expected_password_hash_phc: String,
+    password_candidate: String,
+) -> Result<(), PublishError> {
+    let expected_password_hash = PasswordHash::new(&expected_password_hash_phc)
+        .context("Failed to parse hash in PHC string format")
+        .map_err(PublishError::UnexpectedError)?;
+
+    // Execute the function within the scope of this span.
+    Argon2::default()
+        .verify_password(password_candidate.as_bytes(), &expected_password_hash)
+        .context("Invalid password")
+        .map_err(PublishError::AuthError)
 }
 
 #[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
